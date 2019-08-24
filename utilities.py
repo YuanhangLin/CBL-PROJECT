@@ -820,3 +820,54 @@ def randmat_between_two_dates(train_date, test_date, path = ""):
     test_spectra, test_polygons = get_spectra_and_polygon_name(path + test_date + "_AVIRIS_speclib_subset_spectra.csv", bbl)
     A = randmat(train_spectra, train_polygons, test_spectra, test_polygons)
     return A
+
+def make_dataset_aggregated_polygon(date, path = "../data/"):
+    """
+    This function aggregates multi-sensor data for same set of polygons of a specific date.
+    Input:
+    date         :  Python built-in string, e.g., "130411"
+    path         :  Python built-in string, path to the raw data file
+    
+    Output       :  exp1_date_aggregated_dataset.mat saved in path
+    
+    """
+    os.chdir(path)
+    ### get bbl info
+    bbl, label_name_mapping = get_auxiliary_info("auxiliary_info.mat")
+    spectra_raw_csv = date + "_AVIRIS_speclib_subset_spectra.csv"
+    ### pixel_level_spectra preprocess
+    _, polygon_names = get_spectra_and_polygon_name(spectra_raw_csv, bbl)
+    ### get list of unique polygons
+    unique_polygons = np.unique(polygon_names)[:, np.newaxis].astype(str)
+    ### aggregate spectra
+    polygon_spectra = get_spectra(spectra_raw_csv, bbl, unique_polygons)
+    ### aggregate thermal
+    thermal_raw_csv = date + "_AVIRIS+MASTER_spectral_library_spectra.csv"
+    polygon_thermal = get_thermal(thermal_raw_csv, unique_polygons)
+    ### aggregate gis features
+    gis_raw_csv = "topo_variables_spectral_library_spectra.csv"
+    polygon_gis = get_gis_feature(gis_raw_csv, unique_polygons)
+    ### split by polygon
+    split_indices_csv = date + "_AVIRIS_speclib_subset_trainval.csv"
+    split_indices = []
+    for i in range(20):
+        indices = split_dataset_for_aggregated_polygon(split_indices_csv, polygon_names, unique_polygons, 0)
+        split_indices.append(indices)
+    split_indices = np.array(split_indices)
+    ### assign labels for each labels
+    polygon_labels = assign_labels_for_polygons(label_name_mapping, unique_polygons)
+    data = [polygon_spectra, polygon_thermal, polygon_gis]
+    feature_mean = [None] * 3
+    missing_data_flag = [None] * 3
+    for i in range(len(data)):
+        feature_mean[i], missing_data_flag[i] = get_statistic(data[i])
+        data[i] = replace_missing_data(data[i], feature_mean[i], missing_data_flag[i])
+    missing_data_flag = np.array(missing_data_flag).squeeze().T
+    savemat("exp1_" + date + "_aggregated_dataset.mat", { "unique_polygons":unique_polygons, 
+            "polygon_spectra":polygon_spectra, "polygon_thermal":polygon_thermal, 
+            "polygon_gis": polygon_gis, "split_indices":split_indices,
+            "polygon_labels" : polygon_labels, 
+            "missing_data_flag" : missing_data_flag, 
+            "spectra_mean": feature_mean[0], "thermal_mean" : feature_mean[1], "gis_mean" : feature_mean[2],
+            "spectra_missing_flag" : missing_data_flag[0], "thermal_missing_flag" : missing_data_flag[1], 
+            "gis_missing_flag" : missing_data_flag[2]})   
