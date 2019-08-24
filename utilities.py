@@ -24,7 +24,7 @@ def pixmat(train_spectra, train_polygons, train_coordinates,
            test_spectra, test_polygons, test_coordinates):
     """
     This function performs pixel-matching linear mapping.
-    Only the pixels that are included in both two dates can be used for constructing pairs.
+    Only the pixels that are included in both two dates are used for constructing pairs.
     
     Inputs:
     train_spectra       : N_train x 174 Numpy array, spectra of pixels of training date
@@ -368,6 +368,29 @@ def get_cda_transformation_matrix(spectra, split, labels, reduced_dim):
     spectra = spectra[indices, :]
     labels = labels[indices, :].astype(np.int64)
     clf.fit(spectra, labels)
+    return clf.scalings_
+
+def get_all_cda_transformation_matrices(aux_file, spectra_file, split_file):
+    """
+    Inputs:
+    spectra       : Npixel x 174 Numpy array
+    split         : Npixel x 1 Numpy array
+                    0 for testing, 1 for training, 2 for validation
+    labels        : Npixel x 1 Numpy array
+    reduced_dim   : Python integer, at most (Nclass - 1)
+                    Nclass: number of different classes
+
+    Output:
+    A             : 174 x reduced_dim Numpy array
+    """
+    bbl, label_name_mapping = get_auxiliary_info(aux_file)
+
+    clf = LinearDiscriminantAnalysis(n_components = reduced_dim)
+    indices = split[np.where(split == 1)[0]]
+    spectra = spectra[indices, :]
+    labels = labels[indices, :].astype(np.int64)
+    clf.fit(spectra, labels)
+
     return clf.scalings_
 
 def split_dataset_for_aggregated_polygon(file_name, polygon_names, unique_polygons, index):
@@ -765,3 +788,35 @@ def replace_missing_data(data, feature_mean, missing_data_flag):
     else:
         raise ValueError("Sorry. Unrecognized data type")
     return data
+
+def pixmat_between_two_dates(train_date, test_date, path = ""):
+    """
+    Inputs:
+    train_date : Python built-in string
+    test_date  : Python built-in string
+    path       : Python built-in string
+    Output:
+    A          : Numpy 174 x 174 array, maps spectra of test_date to train_date
+    """
+    bbl, _ = get_auxiliary_info(path + "auxiliary_info.mat")
+    train_spectra, train_polygons = get_spectra_and_polygon_name(path + train_date + "_AVIRIS_speclib_subset_spectra.csv", bbl)
+    train_coordinates = get_coordinates(path + train_date + "_AVIRIS_speclib_subset_metadata.csv")
+    test_spectra, test_polygons = get_spectra_and_polygon_name(path + test_date + "_AVIRIS_speclib_subset_spectra.csv", bbl)
+    test_coordinates = get_coordinates(path + test_date + "_AVIRIS_speclib_subset_metadata.csv")
+    A = pixmat(train_spectra, train_polygons, train_coordinates, test_spectra, test_polygons, test_coordinates)
+    return A
+
+def randmat_between_two_dates(train_date, test_date, path = ""):
+    """
+    Inputs:
+    train_date : Python built-in string
+    test_date  : Python built-in string
+    path       : Python built-in string
+    Output:
+    A          : Numpy 174 x 174 array, maps spectra of test_date to train_date
+    """
+    bbl, _ = get_auxiliary_info(path + "auxiliary_info.mat")
+    train_spectra, train_polygons = get_spectra_and_polygon_name(path + train_date + "_AVIRIS_speclib_subset_spectra.csv", bbl)
+    test_spectra, test_polygons = get_spectra_and_polygon_name(path + test_date + "_AVIRIS_speclib_subset_spectra.csv", bbl)
+    A = randmat(train_spectra, train_polygons, test_spectra, test_polygons)
+    return A
