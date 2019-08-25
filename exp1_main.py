@@ -5,9 +5,39 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import math
 
 from utilities import *
-from exp1_feature_level_fusion_class.py import Exp1MLP, Exp1Dataset
+from exp1_feature_level_fusion_class import Exp1Dataset
+
+class Exp1MLP(nn.Module):
+    
+    def __init__(self):
+        
+        super(Exp1MLP, self).__init__()
+        self._spectra_fc1 = nn.Linear(174, 174)
+        self._spectra_fc2 = nn.Linear(174, 11)
+        self._thermal_fc = nn.Linear(5, 3)
+        self._gis_fc = nn.Linear(10, 5)
+        self._classifier = nn.Linear(19, 27)
+        self._spectra_fc1.weight = nn.Parameter(torch.diag(torch.diag(self._spectra_fc1.weight)))
+        self._tanh = nn.Tanh()
+    
+    def forward(self, x):
+        spectra = self._tanh(self._spectra_fc1(x[0]))
+        spectra = self._spectra_fc2(spectra)
+        thermal = self._tanh(self._thermal_fc(x[1]))
+        gis = self._tanh(self._gis_fc(x[2]))
+        out = torch.cat((spectra, thermal, gis), 1)
+        out = self._classifier(out)
+        return out
+    
+    def save_state_to_file(self, filepath):
+        torch.save(self.state_dict(), filepath)
+        
+    def load_state_from_file(self, filepath):
+        self.load_state_dict(torch.load(filepath))
+    
 
 def make_dataset_aggregated_polygon(date):
     os.chdir("../data/")

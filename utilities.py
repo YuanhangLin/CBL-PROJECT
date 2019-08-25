@@ -19,6 +19,8 @@ import math
 import scipy
 import warnings
 import torch.utils.data as tdata
+import sklearn
+import scipy.signal
 
 def pixmat(train_spectra, train_polygons, train_coordinates,
            test_spectra, test_polygons, test_coordinates):
@@ -238,15 +240,15 @@ def get_gis_feature(file_name, unique_polygons):
     data = pd.read_csv(file_name)
     pixel_gis = data.values[:, 5:]
     polygon_gis = np.zeros((unique_polygons.shape[0], pixel_gis.shape[1]))
-    pixel_polygon = data.values[:, 2]
+    pixel_polygon_name = data.values[:, 2]
     pixel_gis = (pixel_gis - np.min(pixel_gis, axis = 0)) / (np.max(pixel_gis, axis = 0) - np.min(pixel_gis, axis = 0))
     for i, unique_polygon in enumerate(unique_polygons):
-        indices = np.where(pixel_polygon == unique_polygon)[0]
+        indices = np.where(pixel_polygon_name == unique_polygon)[0]
         if len(indices) == 0:
             continue
         else:
             polygon_gis[i, :] = polygon_aggregation(pixel_gis[indices, :], aggregate_using_truncated_mean)     
-    return polygon_gis
+    return coordinates, polygon_gis
     
 def get_spectra(file_name, bbl, unique_polygons):
     """
@@ -662,7 +664,7 @@ def construct_adjacency_matrix(dist, method = "fixed", n_neighbors = 10,
     if sparse:
         adj = scipy.sparse.csr_matrix(adj)
     return adj
-       
+  
 def construct_distance_matrix(data, polygon_names, metric = "Haudsdroff", norm = "L1", 
                  sensor = "AVIRIS"):
     """
@@ -722,6 +724,27 @@ def construct_distance_matrix(data, polygon_names, metric = "Haudsdroff", norm =
         raise ValueError("Sorry. Unrecognized data sensor")
     
     return dist
+
+def construct_distance_matrix_ver2(data):
+    """
+    This function measures distance between aggregated polygon using L1 norm.
+    
+    Input:
+    data          : Nsamples x D Numpy array, D: number of features
+
+    Output:
+    dist          : Nsamples x Nsamples Numpy array, distance matrix
+
+    Reference:
+    L1, L2 norm           :  https://en.wikipedia.org/wiki/Norm_(mathematics)
+    """
+    num_polygons = len(data)
+    dist = np.ones((num_polygons, num_polygons))*0.001
+    for pair in combinations(range(num_polygons), 2):
+        dist[pair[0], pair[1]] = scipy.signal.correlate(data[pair[0], :], data[pair[1], :])
+        dist[pair[1], pair[0]] = dist[pair[0], pair[1]]
+    return dist
+
 
 def get_statistic(data):
     """
@@ -871,3 +894,11 @@ def make_dataset_aggregated_polygon(date, path = "../data/"):
             "spectra_mean": feature_mean[0], "thermal_mean" : feature_mean[1], "gis_mean" : feature_mean[2],
             "spectra_missing_flag" : missing_data_flag[0], "thermal_missing_flag" : missing_data_flag[1], 
             "gis_missing_flag" : missing_data_flag[2]})   
+
+def for_test():
+    print("the class can class for test()")
+
+
+if __name__ == "__main__":
+#    make_dataset_aggregated_polygon("130411")
+    dist_spectra = construct_distance_matrix_ver2(x["polygon_spectra"])
