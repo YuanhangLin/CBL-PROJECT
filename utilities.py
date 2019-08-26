@@ -20,6 +20,7 @@ import scipy
 import warnings
 import torch.utils.data as tdata
 import sklearn
+import sklearn.metrics
 import scipy.signal
 
 def pixmat(train_spectra, train_polygons, train_coordinates,
@@ -248,7 +249,7 @@ def get_gis_feature(file_name, unique_polygons):
             continue
         else:
             polygon_gis[i, :] = polygon_aggregation(pixel_gis[indices, :], aggregate_using_truncated_mean)     
-    return coordinates, polygon_gis
+    return polygon_gis
     
 def get_spectra(file_name, bbl, unique_polygons):
     """
@@ -277,6 +278,8 @@ def get_spectra(file_name, bbl, unique_polygons):
             continue
         else:
             polygon_spectra[i, :] = polygon_aggregation(pixel_spectra[indices, :], aggregate_using_truncated_mean)   
+            print(i, "pause for debugging")
+            print(polygon_spectra[i, :])
     return polygon_spectra
 
 def assign_labels_for_polygons(label_name_mapping, unique_polygons):
@@ -489,6 +492,7 @@ def graph_fourier_transform(A, normalized = "symmetric"):
     # we want the eigenvalues sorted in descending order
     
     U = np.fliplr(U)
+    U = np.real(U)
     S.sort()
     S = S[::-1]
     
@@ -725,7 +729,7 @@ def construct_distance_matrix(data, polygon_names, metric = "Haudsdroff", norm =
     
     return dist
 
-def construct_distance_matrix_ver2(data):
+def construct_distance_matrix_using_aggregated_polygon(data):
     """
     This function measures distance between aggregated polygon using L1 norm.
     
@@ -741,10 +745,10 @@ def construct_distance_matrix_ver2(data):
     num_polygons = len(data)
     dist = np.ones((num_polygons, num_polygons))*0.001
     for pair in combinations(range(num_polygons), 2):
-        dist[pair[0], pair[1]] = scipy.signal.correlate(data[pair[0], :], data[pair[1], :])
+        dist[pair[0], pair[1]] = sklearn.metrics.pairwise.manhattan_distances(data[pair[0], :].reshape(1,-1), 
+                                                                              data[pair[1], :].reshape(1,-1))
         dist[pair[1], pair[0]] = dist[pair[0], pair[1]]
     return dist
-
 
 def get_statistic(data):
     """
@@ -872,10 +876,7 @@ def make_dataset_aggregated_polygon(date, path = "../data/"):
     polygon_gis = get_gis_feature(gis_raw_csv, unique_polygons)
     ### split by polygon
     split_indices_csv = date + "_AVIRIS_speclib_subset_trainval.csv"
-    split_indices = []
-    for i in range(20):
-        indices = split_dataset_for_aggregated_polygon(split_indices_csv, polygon_names, unique_polygons, 0)
-        split_indices.append(indices)
+    split_indices = split_dataset_for_aggregated_polygon(split_indices_csv, polygon_names, unique_polygons, 0)
     split_indices = np.array(split_indices)
     ### assign labels for each labels
     polygon_labels = assign_labels_for_polygons(label_name_mapping, unique_polygons)
@@ -895,10 +896,5 @@ def make_dataset_aggregated_polygon(date, path = "../data/"):
             "spectra_missing_flag" : missing_data_flag[0], "thermal_missing_flag" : missing_data_flag[1], 
             "gis_missing_flag" : missing_data_flag[2]})   
 
-def for_test():
-    print("the class can class for test()")
-
-
 if __name__ == "__main__":
-#    make_dataset_aggregated_polygon("130411")
-    dist_spectra = construct_distance_matrix_ver2(x["polygon_spectra"])
+    make_dataset_aggregated_polygon("130411", path = "../data/")

@@ -28,9 +28,9 @@ class Graph_Convolution_With_MLP(nn.Module):
         self._gis_gc = nn.Linear()
 
         self._spectra_fc1 = nn.Linear(174, 44)
-        self._spectra_fc2 = nn.Linear(44, 11)
         self._thermal_fc = nn.Linear(5, 3)
         self._gis_fc = nn.Linear(10, 5)
+        
         self._classifier = nn.Linear(19, 27)
         self._tanh = nn.Tanh()
     
