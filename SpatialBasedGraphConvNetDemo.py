@@ -39,7 +39,7 @@ class Dataset(tdata.Dataset):
                
 def demo():
     # parameter setting
-    num_epochs = 100000
+    num_epochs = 10000
     learning_rate = 0.001
     criterion = nn.CrossEntropyLoss() # object function
     
@@ -104,6 +104,7 @@ def demo():
             _, predicted = torch.max(output, 1)
             running_loss = 0.0
     
+    total, correct = 0, 0
     
     net.eval()
     with torch.no_grad():
@@ -139,6 +140,7 @@ def demo():
             labels = labels.squeeze()
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
+            print("accuracy:", correct / total)
 
 if __name__ == "__main__":
     demo()

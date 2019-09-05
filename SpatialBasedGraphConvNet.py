@@ -53,9 +53,16 @@ class SpatialBasedGraphConvNet(Module):
         self._gc_thermal = SpatialBasedGraphConvLayer(nfeat[1], nhid[1])
         self._gc_gis = SpatialBasedGraphConvLayer(nfeat[2], nhid[2])
         
-        # MLP for data-fusion and classification
-        self._classifier = nn.Linear(sum(nhid), nclass)
+        # MLPs for each sensor
+        nhids_each_sensors = [math.floor(nhid[0]/2)+1, math.floor(nhid[1]/2)+1, math.floor(nhid[2]/2)+1]
+        self._mlp_spectra = nn.Linear(nhid[0], nhids_each_sensors[0])
+        self._mlp_thermal = nn.Linear(nhid[1], nhids_each_sensors[1])
+        self._mlp_gis = nn.Linear(nhid[2], nhids_each_sensors[2])
+        
+        # MLPs for data-fusion and classification
+        self._classifier = nn.Linear(sum(nhids_each_sensors), nclass)
 
+        # a lot of people use it but not here...
         self.dropout = dropout
 
     def forward(self, x, adjs):
@@ -68,11 +75,16 @@ class SpatialBasedGraphConvNet(Module):
         adj_gis[torch.isnan(adj_gis)] = 0
         
         # Graph Convolution
-        spectra = F.sigmoid(self._gc_spectra(spectra, adj_spectra))
-        thermal = F.sigmoid(self._gc_thermal(thermal, adj_thermal))
-        gis = F.sigmoid(self._gc_gis(gis, adj_gis))
+        spectra = self._gc_spectra(spectra, adj_spectra)
+        thermal = self._gc_thermal(thermal, adj_thermal)
+        gis = self._gc_gis(gis, adj_gis)
         
-        # feature-level data fusion and MLP learning
+        # MLP for intermediate features
+        spectra = F.tanh(self._mlp_spectra(spectra))
+        thermal = F.tanh(self._mlp_thermal(thermal))
+        gis = F.tanh(self._mlp_gis(gis))
+        
+        # feature-level data fusion and classification
         x = torch.cat((spectra, thermal, gis), dim = 1)
         output = self._classifier(x)
         return output

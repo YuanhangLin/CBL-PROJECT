@@ -13,7 +13,6 @@ if sys.version_info[0] == 2:
 else:
     import pickle
 
-import torchExp1Dataset
 import torch.nn as nn
 import torch.utils.data as tdata
 from scipy.io import loadmat

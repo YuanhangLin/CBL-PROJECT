@@ -7,8 +7,42 @@ import torch.nn.functional as F
 import torch.optim as optim
 import math
 
+import numpy as np
+import torch.utils.data as tdata
+from scipy.io import loadmat
+from torchvision import datasets, transforms
+
 from utilities import *
-from exp1_feature_level_fusion_class import Exp1Dataset
+
+class Exp1Dataset(tdata.Dataset):
+    
+    def __init__(self, root = "../data/", date = "130411", state = 0, split_index = 0):
+        """
+        state : 0 means testing, 1 means training, 2 means valid
+        """
+        file_name = root + "exp1_" + date + "_aggregated_dataset_exp1.mat"
+        x = loadmat(file_name, squeeze_me = True)
+        self._indices = np.where(x["split_indices"][split_index] == state)[0]
+        self._polygon_names = x["unique_polygons"][self._indices][:, np.newaxis].astype(str)
+        self._spectra = x["polygon_spectra"][self._indices]
+        self._thermal = x["polygon_thermal"][self._indices]
+        self._gis = x["polygon_gis"][self._indices]
+        self._labels = x["polygon_labels"][self._indices][:, np.newaxis].astype(np.int)
+        self._spectra_missing_flag = x["spectra_missing_flag"]
+        self._thermal_missing_flag = x["thermal_missing_flag"]
+        self._gis_missing_flag = x["gis_missing_flag"]
+        self._missing_flag = x["missing_data_flag"].T
+        
+    def __len__(self):
+        return len(self._polygon_names)
+    
+    def __getitem__(self, index):
+        return torch.from_numpy(self._spectra[index,:]).float(), \
+               torch.from_numpy(self._thermal[index,:]).float() , \
+               torch.from_numpy(self._gis[index,:]).float(), \
+               torch.from_numpy(self._labels[index]), \
+               torch.from_numpy(self._missing_flag[index,:]).float()
+
 
 class Exp1MLP(nn.Module):
     
@@ -72,7 +106,7 @@ def make_dataset_aggregated_polygon(date):
         feature_mean[i], missing_data_flag[i] = get_statistic(data[i])
         data[i] = replace_missing_data(data[i], feature_mean[i], missing_data_flag[i])
     missing_data_flag = np.array(missing_data_flag).squeeze().T
-    savemat("exp1_" + date + "_aggregated_dataset.mat", { "unique_polygons":unique_polygons, 
+    savemat("exp1_" + date + "_aggregated_dataset_exp1.mat", { "unique_polygons":unique_polygons, 
             "polygon_spectra":polygon_spectra, "polygon_thermal":polygon_thermal, 
             "polygon_gis": polygon_gis, "split_indices":split_indices,
             "polygon_labels" : polygon_labels, 
@@ -85,9 +119,10 @@ def make_dataset_aggregated_polygon(date):
 def make_all_date_dataset():
     dates = ["130411", "130606", "131125", "140416", "140600", "140829", "150416", "150602", "150824"]
     for date in dates:
-        make_dataset(date)
+        make_dataset_aggregated_polygon(date)
 
 def exp1():
+    make_dataset_aggregated_polygon("130411")
     learning_rate = 0.001
     num_epochs = 3000
     exp1_net = Exp1MLP()
