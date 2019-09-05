@@ -62,18 +62,19 @@ class SpatialBasedGraphConvNet(Module):
         spectra, thermal, gis = x[0], x[1], x[2]
         adj_spectra, adj_thermal, adj_gis = adjs[0], adjs[1], adjs[2]
         
+        # remove all nan
+        adj_spectra[torch.isnan(adj_spectra)] = 0
+        adj_thermal[torch.isnan(adj_thermal)] = 0
+        adj_gis[torch.isnan(adj_gis)] = 0
+        
         # Graph Convolution
-        spectra = F.relu(self._gc_spectra(spectra, adj_spectra))
-        thermal = F.relu(self._gc_thermal(thermal, adj_thermal))
-        gis = F.relu(self._gc_gis(gis, adj_gis))
-        spectra = F.dropout(spectra, self.dropout, training=self.training)
-        thermal = F.dropout(thermal, self.dropout, training=self.training)
-        gis = F.dropout(gis, self.dropout, training=self.training)
+        spectra = F.sigmoid(self._gc_spectra(spectra, adj_spectra))
+        thermal = F.sigmoid(self._gc_thermal(thermal, adj_thermal))
+        gis = F.sigmoid(self._gc_gis(gis, adj_gis))
         
         # feature-level data fusion and MLP learning
         x = torch.cat((spectra, thermal, gis), dim = 1)
         output = self._classifier(x)
-
         return output
 
     def save_state_to_file(self, filepath):

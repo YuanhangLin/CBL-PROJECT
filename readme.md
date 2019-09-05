@@ -16,3 +16,7 @@ Some experiments for Ron's workshop paper
 - CDA is the most important factor
 - PixMat/RandMat without CDA using KNN, ~40% accuracy
 - PixMat/RandMat with CDA using KNN, ~70% accuracy
+
+Two kinds of Graph Convolution Network
+(1) Spectral-based Graph Convolution Network
+(2) Spatial-based Graph Convolution Network
