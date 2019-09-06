@@ -41,7 +41,9 @@ def demo():
     # parameter setting
     num_epochs = 10000
     learning_rate = 0.001
-    criterion = nn.CrossEntropyLoss() # object function
+    
+    # object function
+    criterion = nn.CrossEntropyLoss() 
     
     # load data
     trainset = Dataset(date = "130411", state = 1)

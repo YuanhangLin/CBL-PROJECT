@@ -17,7 +17,7 @@ class SpectralBasedGraphConvLayer(Module):
     (3) _bias       : A Pytorch Parameter contains a (_num_filters x 1) Pytorch FloatTensor, which is optional
     """
     
-    def __init__(self, num_vertices, num_features, bias = False):
+    def __init__(self, num_vertices, num_features, bias = True):
         super(SpectralBasedGraphConvLayer, self).__init__()
         self._num_filters = num_features
         self._num_vertices = num_vertices
@@ -48,15 +48,20 @@ class SpectralBasedGraphConvLayer(Module):
         # (U^t)U = I
         output = torch.zeros(x.shape).double()
         num_samples, num_features = x.shape
+        # torch.mm requires 64-bit precision
         x = x.double()
         U = U.double()
+        x = x.cuda()
+        U = U.cuda()
+        output = output.cuda()
         for i in range(self._num_filters):
-            W_i = torch.diag(self._filters[i, :]).double()
-            y = torch.mm(U.t(), x[i,:])
-            f = torch.mm(U, W_i)
-            output[:,i] = torch.mm(f, y).t()
+            s = x[:,i].view(x.shape[0], 1)
+            y = torch.mm(U.t(), s)
+            f = torch.mm(U, torch.diag(self._filters[i, :]).double())
+            s_conv = torch.mm(f, y)
+            output[:,i] = torch.diag(s_conv)
             if self._bias is not None:
-                output[:,i] += self._bias[i,:].t()
+                output[:,i] += self._bias[i,:].double()
         return output
     
     def __repr__(self):
@@ -67,10 +72,9 @@ class SpectralBasedGraphConvLayer(Module):
         stdv = 1. / math.sqrt(self._filters.size(1))
         # the _filters is a diagonal matrix
         for i in range(len(self._filters)):
-            self._filters[i,:,:].data.uniform_(-stdv, stdv)
-            self._filters[i,:,:].data = torch.diag(torch.diag(self._filters[i,:,:].data)).double()
+            self._filters[i,:].data.uniform_(-stdv, stdv).double()
             if self._bias is not None:
-                self._bias[i,:,:].data.uniform_(-stdv, stdv).double()
+                self._bias[i,:].data.uniform_(-stdv, stdv).double()
             
 class SpectralBasedGraphConvNet(Module):
     
@@ -106,9 +110,9 @@ class SpectralBasedGraphConvNet(Module):
         spectra, thermal, gis = data[0], data[1], data[2]
         
         # Graph Convolution
-        spectra = self._gc_spectra.forward(spectra, self._U_spectra).t()
-        thermal = self._gc_thermal.forward(thermal, self._U_thermal).t()
-        gis = self._gc_gis.forward(gis, self._U_gis).t()
+        spectra = self._gc_spectra.forward(spectra, self._U_spectra)
+        thermal = self._gc_thermal.forward(thermal, self._U_thermal)
+        gis = self._gc_gis.forward(gis, self._U_gis)
         
         # MLP learning
         spectra = self._spectra_fc.forward(spectra.float())
@@ -129,4 +133,18 @@ class SpectralBasedGraphConvNet(Module):
     
 if __name__ == "__main__":
     net = SpectralBasedGraphConvNet([26, 4, 7], [20, 2, 4], [np.ones((1000,1000))]*3,nclass=27)
-    data = [torch.rand(1000,26), torch.rand(1000,4), torch.rand(1000,7)]
+    net.cuda() # use GPU to acclerate training/testing
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    data = [torch.rand(1000,26).cuda(), torch.rand(1000,4).cuda(), torch.rand(1000,7).cuda()]
+    output = net.forward(data)
+    criterion = nn.CrossEntropyLoss() 
+    optimizer = torch.optim.Adam(net.parameters(), lr = 0.01)
+    labels = torch.randint(0,9,(output.shape[0],)).cuda()
+    for i in range(1000):
+        print(i)
+        loss = criterion(output, labels.squeeze(0) if output.shape[0] == 1 else labels.squeeze())
+        if i%10 == 0 and i != 0:
+            print("wait here")
+        loss.backward(retain_graph=True)
+    print("...")
+    
