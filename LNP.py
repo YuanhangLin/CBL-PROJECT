@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# vim: set fileencoding=utf-8 :
-
 import random
 import numpy as np
 from cvxopt import matrix, solvers
@@ -9,54 +6,33 @@ import math
 class LNP:
 
     def __init__(self):
-        self.X = []
-        self.Y = []               # 每一个样本的标签
-        self.attr_num = 8             # 样本属性的数量
-        self.label_num = 2        # 标签的数量
-        self.sigma = 5            # 距离的sigma值
-        self.alpha = 0.95
-        self.maxk = 3             # 最近邻的邻居数
-        self.sub = []             # 每一个属性最小值与最大值的差，用于归一化
-        self.gram = []            # gram矩阵（G矩阵）
-        self.W = []               # 每个样本的权重矩阵
-        self.percentage_label_sample = 0.1 # 已有确定标签的样本数量的百分比
-        self.num_label_sample = 0 # 已有确定标签的样本数量
+
+        self.X = []               # data
+        self.Y = []               # labels for each samples
+
+        self.true_labels = []
+
+        self.attr_num = 2         # feature_num
+        self.label_num = 2        # num of classes
+        self.sigma = 5            # sigma for graph construction
+        self.alpha = 0.95         # fraction of label information that xi receives from its neighbors
+        self.maxk = 3             # number of nearest neighbors
+        self.sub = []             # the max and min for each feature used for normalization
+        self.gram = []            # Gram matrix
+        self.W = []               # weight matrix (i.e., adjacency matrix for the samples)
+        self.percentage_label_sample = 0.1 
+        self.num_label_sample = 0 
         self.num_samples = 0
 
-        self.neighbor = []        # 记录每个点的k个最近邻
-        self.neighbor_num = 3     # 每个样本的近邻数量
+        self.neighbor = []        # knn 
+        self.neighbor_num = 3     # k
         self.num = 0
-
-    def set_filename_and_op(self, filename, separator):
-        self.filename = filename        # 记录样本的文件名
-        self.separator = separator      # 记录样本数据的分割符
-
-    def read_data(self):
-        with open(self.filename) as f:
-            lines = f.readlines()       # 读取所有样本数据
-
-            for line in lines:
-                if self.separator != '\t':
-                    line = line.replace(self.separator, '\t')
-                content = line.split('\t')   # 根据分割符分割每个属性的数据
-                new_item = []
-                for i in range(self.attr_num):
-                    num = float(content[i])
-                    new_item.append(num)     # 往item中放入每一个属性的值
-                label = content[self.attr_num]
-                label = label.replace('\n', '')
-                labeli = int(label)
-                if labeli == 0:
-                    labeli = -1
-                self.Y.append(labeli)      # 将标签赋予对应的样本
-                self.X.append(new_item)    # 往矩阵里存入样本
-            print(self.Y)
-            self.num_samples = len(self.X)
 
     def max_min(self):
         num_samples = len(self.X)
         temp1 = []
-        # 找出每个属性最大值与最小值的差，用于归一化
+        # find out max and min for each feature
+        # for future normalization
         for i in range(self.attr_num):
             for j in range(num_samples):
                 temp1.append(self.X[j][i])
@@ -65,11 +41,9 @@ class LNP:
             self.sub.append(max_temp-min_temp)
             temp1 = []
 
-    # 返回X矩阵
     def get_x(self):
         return self.X
 
-    # 返回Y矩阵
     def get_y(self):
         return self.Y
 
@@ -89,7 +63,7 @@ class LNP:
                         dist = dist/self.sub[k]
                         diff += dist ** 2
 
-                # self.gram[i][j] = diff       # 同样的j不同的k,gram值是一样的,注意这里diff已经归一化，可以考虑不归一化
+                # self.gram[i][j] = diff       
                 if i != j:
                     self.affinity_matrix[i][j] = [math.exp(diff/ (-2.0 * (self.sigma ** 2))), j]
 
@@ -129,7 +103,6 @@ class LNP:
             self.cal_weight(i)
 
     def cal_weight(self, i):
-        # 构造二次规划的Q矩阵
 
         '''
         tempQ = np.zeros((self.maxk, self.maxk), np.double)
@@ -141,9 +114,9 @@ class LNP:
         print(type(tempQ))
         Q = 2 * matrix(tempQ)
         tempp = np.zeros((1, self.maxk), np.double)
-        p = matrix(tempp)                        # 代表一次项的系数
+        p = matrix(tempp)                        # linear term
         print(p)
-        G = matrix([[-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]])        # G和h代表GX+s = h，s>=0,表示每一个变量x均大于零
+        G = matrix([[-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]])        # GX + s = h, x > 0 
         temph = np.zeros((1, self.maxk), np.double)
         h = matrix(temph)
         tempA = np.ones((1, self.maxk), np.double)
@@ -161,7 +134,7 @@ class LNP:
         q32 = (self.gram[i][1] + self.gram[i][2]) / 2
         q33 = self.gram[i][2]
         Q = 2 * matrix([[q11, q21, q31], [q12, q22, q32], [q13, q23, q33]])
-        p = matrix([0.0, 0.0, 0.0])  # 代表一次项的系数
+        p = matrix([0.0, 0.0, 0.0])  
         G = matrix([[-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]])  # G和h代表GX+s = h，s>=0,表示每一个变量x均大于零
         h = matrix([0.0, 0.0, 0.0])
         A = matrix([1.0, 1.0, 1.0], (1, 3))
@@ -177,8 +150,8 @@ class LNP:
     def LNPiter(self):
         P = self.W.copy()
 
-        tol = 0.00001     # 误差限
-        max_iter = 1000   # 最大迭代次数
+        tol = 0.00001     
+        max_iter = 1000   
         self.num_label_sample = self.num_samples * self.percentage_label_sample
         num_unlabel_sample = self.num_samples - self.num_label_sample
 
@@ -191,11 +164,11 @@ class LNP:
             else:
                 clamp_data_label[i][1] = 1
 
-        # for i in xrange(num_unlabel_sample):
+        # for i in range(num_unlabel_sample):
             # clamp_data_label[i+self.num_label_sample] = 0
 
 
-        # 分类函数f = Xu
+        # f = Xu
         label_function = clamp_data_label.copy()
         iter_num = 0
         pre_label_function = np.zeros((self.num_samples, self.label_num), np.float32)
@@ -255,11 +228,73 @@ class LNP:
         accuracy = (A + D) / (A + B + C + D) * 100
         return accuracy
 
+    def generate_data(unlabeled_percentage_ = 0.1, seed_ = 0):
+        mu_1 = np.array([2, 2])
+        sigma_1 = 0.01 * np.diag(np.ones(2))
+        data_class_1 = np.random.multivariate_normal(mu_1, sigma_1, 100)
+        labels_class_1 = np.ones(100).astype(int)
+
+        mu_2 = np.array([-2, -2])
+        sigma_2 = 0.1 * np.diag(np.ones(2))
+        data_class_2 = np.random.multivariate_normal(mu_2, sigma_2, 100)
+        labels_class_2 = np.zeros(100).astype(int)
+
+        data = np.vstack((data_class_1, data_class_2))
+        labels = np.concatenate((labels_class_1, labels_class_2))
+
+        # plt.scatter(data[0:100,0], data[0:100,1], c = 'red')
+        # plt.hold(True)
+        # plt.scatter(data[100:,0], data[100:,1], c = 'blue')
+
+        unlabeled_percentage = unlabeled_percentage_
+        rng = np.random.RandomState(seed = seed_)
+        unlabeled_idx = rng.rand(len(data)) < unlabeled_percentage
+
+        partial_labels = labels.copy()
+        partial_labels[unlabeled_idx] = -1
+
+        self.X = data
+        self.Y = partial_labels
+        self.true_labels = labels
+        self.num_samples = len(self.X)
+
+
+    # def set_filename_and_op(self, filename, separator):
+    #     self.filename = filename        
+    #     self.separator = separator     
+
+    # def read_data(self):
+    #     with open(self.filename) as f:
+    #         lines = f.readlines()       
+
+    #         for line in lines:
+    #             if self.separator != '\t':
+    #                 line = line.replace(self.separator, '\t')
+    #             content = line.split('\t')   
+    #             new_item = []
+    #             for i in range(self.attr_num):
+    #                 num = float(content[i])
+    #                 new_item.append(num)    
+    #             label = content[self.attr_num]
+    #             label = label.replace('\n', '')
+    #             labeli = int(label)
+    #             if labeli == 0:
+    #                 labeli = -1
+    #             self.Y.append(labeli)     
+    #             self.X.append(new_item)   
+    #         print(self.Y)
+    #         self.num_samples = len(self.X)
+
+
+
+
 
 
 test = LNP()
-test.set_filename_and_op("pimaData.txt", ',')
-test.read_data()
+# test.set_filename_and_op("pimaData.txt", ',')
+# test.read_data()
+test.generate_data()
+
 test.build_graph()
 test.set_neighbor()
 test.set_gram()
