@@ -2,6 +2,9 @@ import random
 import numpy as np
 from cvxopt import matrix, solvers
 import math
+from my_LLE import LLE
+import matplotlib.pyplot as plt
+from label_propagation_source_code_2008_paper import LocallyLinearEmbedding
 
 class LNP:
 
@@ -9,14 +12,13 @@ class LNP:
 
         self.X = []               # data
         self.Y = []               # labels for each samples
-
         self.true_labels = []
 
         self.attr_num = 2         # feature_num
         self.label_num = 2        # num of classes
         self.sigma = 5            # sigma for graph construction
         self.alpha = 0.95         # fraction of label information that xi receives from its neighbors
-        self.maxk = 3             # number of nearest neighbors
+        self.maxk = 20             # number of nearest neighbors
         self.sub = []             # the max and min for each feature used for normalization
         self.gram = []            # Gram matrix
         self.W = []               # weight matrix (i.e., adjacency matrix for the samples)
@@ -25,21 +27,8 @@ class LNP:
         self.num_samples = 0
 
         self.neighbor = []        # knn 
-        self.neighbor_num = 3     # k
         self.num = 0
 
-    def max_min(self):
-        num_samples = len(self.X)
-        temp1 = []
-        # find out max and min for each feature
-        # for future normalization
-        for i in range(self.attr_num):
-            for j in range(num_samples):
-                temp1.append(self.X[j][i])
-            max_temp = max(temp1)
-            min_temp = min(temp1)
-            self.sub.append(max_temp-min_temp)
-            temp1 = []
 
     def get_x(self):
         return self.X
@@ -47,104 +36,109 @@ class LNP:
     def get_y(self):
         return self.Y
 
-    def build_graph(self):
-        self.max_min()
-        num_samples = len(self.X)
-
-        self.affinity_matrix =[[0 for col in range(self.num_samples)] for row in range(self.num_samples)]
-
-        for i in range(num_samples):
-            self.affinity_matrix[i][i] = [0.0, i]
-            for j in range(num_samples):
-                diff = 0.0
-                for k in range(8):
-                    if i != j:
-                        dist = self.X[i][k] - self.X[j][k]
-                        dist = dist/self.sub[k]
-                        diff += dist ** 2
-
-                # self.gram[i][j] = diff       
-                if i != j:
-                    self.affinity_matrix[i][j] = [math.exp(diff/ (-2.0 * (self.sigma ** 2))), j]
-
-
-    def set_neighbor(self):
-        num_samples = len(self.X)
-
-        self.neighbor = [[]for row in range(num_samples)]
-        for i in range(num_samples):
-            temp = sorted(self.affinity_matrix[i], key=lambda x: x[0])
-            temp.reverse()
-            for k in range(self.maxk):
-                j = temp[k][1]
-                self.neighbor[i].append(j)
-            if i == 1:
-                print(self.X[i])
-                print(self.X[self.neighbor[i][0]])
-        print(self.neighbor)
-
-    def set_gram(self):
-        self.gram = [[0 for col in range(self.maxk)] for row in range(self.num_samples)]
-        for i in range(self.num_samples):
-            for j in range(self.maxk):
-                neighbor = self.neighbor[i][j]
-                diff = 0.0
-                for k in range(8):
-                    dist = self.X[i][k] - self.X[neighbor][k]
-                    dist = dist / self.sub[k]
-                    diff += dist ** 2
-                self.gram[i][j] = diff  # 同样的j不同的k,gram值是一样的
-        print(self.gram)
-
-    def solve_weight(self):
-        self.set_gram()
-        self.W = np.zeros((self.num_samples, self.num_samples), np.float32)
-        for i in range(self.num_samples):
-            self.cal_weight(i)
-
-    def cal_weight(self, i):
-
-        '''
-        tempQ = np.zeros((self.maxk, self.maxk), np.double)
-        for j in range(self.maxk):
-            tempQ[j][j] = self.gram[i][j]
-        for m in range(self.maxk):
-            for n in range(self.maxk):
-                tempQ[m][n] = (self.gram[i][m] + self.gram[i][n]) / 2
-        print(type(tempQ))
-        Q = 2 * matrix(tempQ)
-        tempp = np.zeros((1, self.maxk), np.double)
-        p = matrix(tempp)                        # linear term
-        print(p)
-        G = matrix([[-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]])        # GX + s = h, x > 0 
-        temph = np.zeros((1, self.maxk), np.double)
-        h = matrix(temph)
-        tempA = np.ones((1, self.maxk), np.double)
-        A = matrix(tempA)
-
-        '''
-
-        q11 = self.gram[i][0]  # 对角线为二次方的系数
-        q12 = (self.gram[i][0] + self.gram[i][1]) / 2
-        q13 = (self.gram[i][0] + self.gram[i][2]) / 2
-        q21 = (self.gram[i][0] + self.gram[i][1]) / 2
-        q22 = self.gram[i][1]
-        q23 = (self.gram[i][1] + self.gram[i][2]) / 2
-        q31 = (self.gram[i][0] + self.gram[i][2]) / 2
-        q32 = (self.gram[i][1] + self.gram[i][2]) / 2
-        q33 = self.gram[i][2]
-        Q = 2 * matrix([[q11, q21, q31], [q12, q22, q32], [q13, q23, q33]])
-        p = matrix([0.0, 0.0, 0.0])  
-        G = matrix([[-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]])  # G和h代表GX+s = h，s>=0,表示每一个变量x均大于零
-        h = matrix([0.0, 0.0, 0.0])
-        A = matrix([1.0, 1.0, 1.0], (1, 3))
-
-        b = matrix(1.0)                                                    # AX = b
-        sol = solvers.qp(Q, p, G, h, A, b)
-
-        print(sol['x'])
-        for j in range(self.maxk):
-            self.W[i][self.neighbor[i][j]] = sol['x'][j]
+#    def build_graph(self):
+#        self.max_min()
+#        num_samples = len(self.X)
+#
+#        self.affinity_matrix =[[0 for col in range(self.num_samples)] for row in range(self.num_samples)]
+#
+#        for i in range(num_samples):
+#            self.affinity_matrix[i][i] = [0.0, i]
+#            for j in range(num_samples):
+#                diff = 0.0
+#                for k in range(self.attr_num):
+#                    if i != j:
+#                        dist = self.X[i][k] - self.X[j][k]
+#                        dist = dist/self.sub[k]
+#                        diff += dist ** 2
+#
+#                # self.gram[i][j] = diff       
+#                if i != j:
+#                    self.affinity_matrix[i][j] = [math.exp(diff/ (-2.0 * (self.sigma ** 2))), j]
+#
+#
+#    def set_neighbor(self):
+#        num_samples = len(self.X)
+#
+#        self.neighbor = [[]for row in range(num_samples)]
+#        for i in range(num_samples):
+#            temp = sorted(self.affinity_matrix[i], key=lambda x: x[0])
+#            temp.reverse()
+#            for k in range(self.maxk):
+#                j = temp[k][1]
+#                self.neighbor[i].append(j)
+##            if i == 1:
+##                print(self.X[i])
+##                print(self.X[self.neighbor[i][0]])
+##        print(self.neighbor)
+#
+#    def set_gram(self):
+#        self.gram = [[0 for col in range(self.maxk)] for row in range(self.num_samples)]
+#        for i in range(self.num_samples):
+#            for j in range(self.maxk):
+#                neighbor = self.neighbor[i][j]
+#                diff = 0.0
+#                for k in range(self.attr_num):
+#                    dist = self.X[i][k] - self.X[neighbor][k]
+#                    dist = dist / self.sub[k]
+#                    diff += dist ** 2
+#                self.gram[i][j] = diff 
+##        print(self.gram)
+#
+#    def solve_weight(self):
+#        self.W = LLE(self.X.T, self.maxk, 1)
+#        
+#
+##    def solve_weight(self):
+##        self.set_gram()
+##        self.W = np.zeros((self.num_samples, self.num_samples), np.float32)
+##        for i in range(self.num_samples):
+##            self.cal_weight(i)
+##        print("done")
+##
+##    def cal_weight(self, i):
+##
+##        '''
+##        tempQ = np.zeros((self.maxk, self.maxk), np.double)
+##        for j in range(self.maxk):
+##            tempQ[j][j] = self.gram[i][j]
+##        for m in range(self.maxk):
+##            for n in range(self.maxk):
+##                tempQ[m][n] = (self.gram[i][m] + self.gram[i][n]) / 2
+##        print(type(tempQ))
+##        Q = 2 * matrix(tempQ)
+##        tempp = np.zeros((1, self.maxk), np.double)
+##        p = matrix(tempp)                        # linear term
+##        print(p)
+##        G = matrix([[-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]])        # GX + s = h, x > 0 
+##        temph = np.zeros((1, self.maxk), np.double)
+##        h = matrix(temph)
+##        tempA = np.ones((1, self.maxk), np.double)
+##        A = matrix(tempA)
+##
+##        '''
+##
+##        q11 = self.gram[i][0]  
+##        q12 = (self.gram[i][0] + self.gram[i][1]) / 2
+##        q13 = (self.gram[i][0] + self.gram[i][2]) / 2
+##        q21 = (self.gram[i][0] + self.gram[i][1]) / 2
+##        q22 = self.gram[i][1]
+##        q23 = (self.gram[i][1] + self.gram[i][2]) / 2
+##        q31 = (self.gram[i][0] + self.gram[i][2]) / 2
+##        q32 = (self.gram[i][1] + self.gram[i][2]) / 2
+##        q33 = self.gram[i][2]
+##        Q = 2 * matrix([[q11, q21, q31], [q12, q22, q32], [q13, q23, q33]])
+##        p = matrix([0.0, 0.0, 0.0])  
+##        G = matrix([[-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]])  
+##        h = matrix([0.0, 0.0, 0.0])
+##        A = matrix([1.0, 1.0, 1.0], (1, 3))
+##
+##        b = matrix(1.0)                                                    # AX = b
+##        sol = solvers.qp(Q, p, G, h, A, b)
+##
+###        print(sol['x'])
+##        for j in range(self.maxk):
+##            self.W[i][self.neighbor[i][j]] = sol['x'][j]
 
 
     def LNPiter(self):
@@ -160,9 +154,9 @@ class LNP:
         for i in range(int(self.num_label_sample)):
             # clamp_data_label[i] = self.Y[i]
             if self.Y[i] == -1:
-                clamp_data_label[i][0] = 1
+                pass
             else:
-                clamp_data_label[i][1] = 1
+                clamp_data_label[i][1] = self.Y[i]
 
         # for i in range(num_unlabel_sample):
             # clamp_data_label[i+self.num_label_sample] = 0
@@ -174,8 +168,8 @@ class LNP:
         pre_label_function = np.zeros((self.num_samples, self.label_num), np.float32)
         changed = np.abs(pre_label_function - label_function).sum()
         while iter_num < max_iter and changed > tol:
-            if iter_num % 1 == 0:
-                print("---> Iteration %d/%d, changed: %f" % (iter_num, max_iter, changed))
+#            if iter_num % 1 == 0:
+#                print("---> Iteration %d/%d, changed: %f" % (iter_num, max_iter, changed))
             pre_label_function = label_function
             iter_num += 1
 
@@ -224,11 +218,11 @@ class LNP:
                         C = C + 1
                     else:
                         D = D + 1
-        print(A, B, C, D)
+#        print(A, B, C, D)
         accuracy = (A + D) / (A + B + C + D) * 100
         return accuracy
 
-    def generate_data(unlabeled_percentage_ = 0.1, seed_ = 0):
+    def generate_data(self, unlabeled_percentage_ = 0.1, seed_ = 0):
         mu_1 = np.array([2, 2])
         sigma_1 = 0.01 * np.diag(np.ones(2))
         data_class_1 = np.random.multivariate_normal(mu_1, sigma_1, 100)
@@ -242,10 +236,6 @@ class LNP:
         data = np.vstack((data_class_1, data_class_2))
         labels = np.concatenate((labels_class_1, labels_class_2))
 
-        # plt.scatter(data[0:100,0], data[0:100,1], c = 'red')
-        # plt.hold(True)
-        # plt.scatter(data[100:,0], data[100:,1], c = 'blue')
-
         unlabeled_percentage = unlabeled_percentage_
         rng = np.random.RandomState(seed = seed_)
         unlabeled_idx = rng.rand(len(data)) < unlabeled_percentage
@@ -257,49 +247,23 @@ class LNP:
         self.Y = partial_labels
         self.true_labels = labels
         self.num_samples = len(self.X)
+        
+        plt.scatter(data[0:100,0], data[0:100,1], c = 'red')
+        plt.hold(True)
+        plt.scatter(data[100:,0], data[100:,1], c = 'blue')
+        plt.scatter(data[unlabeled_idx,0], data[unlabeled_idx, 1], c = 'black')
+        plt.show()
+        
+    def build_graph_using_LLE(self):
+        my_LLE = LocallyLinearEmbedding(n_neighbors = 5, n_components = 2)
+        my_LLE.fit(self.X)
+        self.W = my_LLE.get_LLE_weight_matrix(self.X)
 
 
-    # def set_filename_and_op(self, filename, separator):
-    #     self.filename = filename        
-    #     self.separator = separator     
-
-    # def read_data(self):
-    #     with open(self.filename) as f:
-    #         lines = f.readlines()       
-
-    #         for line in lines:
-    #             if self.separator != '\t':
-    #                 line = line.replace(self.separator, '\t')
-    #             content = line.split('\t')   
-    #             new_item = []
-    #             for i in range(self.attr_num):
-    #                 num = float(content[i])
-    #                 new_item.append(num)    
-    #             label = content[self.attr_num]
-    #             label = label.replace('\n', '')
-    #             labeli = int(label)
-    #             if labeli == 0:
-    #                 labeli = -1
-    #             self.Y.append(labeli)     
-    #             self.X.append(new_item)   
-    #         print(self.Y)
-    #         self.num_samples = len(self.X)
-
-
-
-
-
-
-test = LNP()
-# test.set_filename_and_op("pimaData.txt", ',')
-# test.read_data()
-test.generate_data()
-
-test.build_graph()
-test.set_neighbor()
-test.set_gram()
-test.solve_weight()
-test.LNPiter()
-accuracy = test.rank_index()
-print("Accuracy: %d%%" %accuracy)
-# print(test.getX())
+for i in range(1, 100, 5):
+    test = LNP()
+    test.generate_data(i/100, 0)    
+    test.build_graph_using_LLE()
+    test.LNPiter()
+    accuracy = test.rank_index()
+    print("Unlabeled percentage", i/100, "Accuracy: %d%%" %accuracy)

@@ -8,10 +8,11 @@ Created on Tue Sep 10 15:53:40 2019
 
 import numpy as np
 from sklearn import datasets
-from sklearn.semi_supervised import LabelPropagation
+from label_propagation_source_code_2002_paper import LabelPropagation
 import matplotlib.pyplot as plt
 
-def demo_label_propgation_2002paper_iris_dataset(unlabeled_per = 0.5):
+
+def demo_label_propgation_2002paper_iris_dataset(unlabeled_per = 0.5, seed_ = 0):
     label_prop_model = LabelPropagation(kernel = "rbf", gamma=20, 
                                         n_neighbors=7, max_iter=1000, tol=0.001)
     
@@ -20,9 +21,9 @@ def demo_label_propgation_2002paper_iris_dataset(unlabeled_per = 0.5):
     data, target = iris.data, iris.target
     
     # randomly makes some data unlabeled
-    rng = np.random.RandomState(0)
+    rng = np.random.RandomState(seed_)
     # uniform distribution over [0, 1)
-    rand_unlabeled_idx = rng.rand(len(data)) < unlabeled_per
+    rand_unlabeled_idx = np.where((rng.rand(len(data)) < unlabeled_per) == True)[0]
     
     true_target = target.copy()
     target[rand_unlabeled_idx] = -1
@@ -32,6 +33,12 @@ def demo_label_propgation_2002paper_iris_dataset(unlabeled_per = 0.5):
     accu = np.where(true_target[rand_unlabeled_idx]==predicts)[0].shape[0]
     print("done, unlabel rate:", unlabeled_per, "total:", total, "accu:", accu, "accuracy:", accu/total)
     
+    
+    plt.scatter(data[target==0,0], data[target==0,1], c = 'red')
+    plt.hold(True)
+    plt.scatter(data[target==1,0], data[target==1,1], c = 'blue')
+    plt.scatter(data[rand_unlabeled_idx, 0], data[rand_unlabeled_idx, 1], c = 'green')
+    plt.show()
 
 def demo_label_propgation_2002paper_same_distribution(unlabeled_percentage_ = 0.1, seed_ = 0):
     
@@ -54,7 +61,8 @@ def demo_label_propgation_2002paper_same_distribution(unlabeled_percentage_ = 0.
     
     unlabeled_percentage = unlabeled_percentage_
     rng = np.random.RandomState(seed = seed_)
-    unlabeled_idx = rng.rand(len(data)) < unlabeled_percentage
+    unlabeled_idx = np.where((rng.rand(len(data)) < unlabeled_percentage)==True)[0]
+    unlabeled_idx.astype(int)
     
     partial_labels = labels.copy()
     partial_labels[unlabeled_idx] = -1
@@ -66,8 +74,12 @@ def demo_label_propgation_2002paper_same_distribution(unlabeled_percentage_ = 0.
     predicts = label_prop_model.predict(data[unlabeled_idx])
     total = predicts.shape[0]
     accu = np.where(labels[unlabeled_idx]==predicts)[0].shape[0]
+    
+    plt.scatter(data[unlabeled_idx, 0], data[unlabeled_idx, 1], c = 'green')
+    
     print("done, unlabel rate:", unlabeled_percentage_, "total:", total, "accu:", accu, "accuracy:", accu/total)
     
+    plt.show()
     
 
 if __name__ == "__main__":
@@ -76,5 +88,7 @@ if __name__ == "__main__":
         
     print("###################################################################")
     
+    
+          
     for i in range(1, 10):
-        demo_label_propgation_2002paper_iris_dataset(i/10)
+        demo_label_propgation_2002paper_iris_dataset(i/10, 0)
