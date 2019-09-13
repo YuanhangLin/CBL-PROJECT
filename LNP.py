@@ -1,9 +1,8 @@
 import random
 import numpy as np
-from cvxopt import matrix, solvers
+# from cvxopt import matrix, solvers
 import math
-from my_LLE import LLE
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 from label_propagation_source_code_2008_paper import LocallyLinearEmbedding
 
 class LNP:
@@ -17,7 +16,7 @@ class LNP:
         self.attr_num = 2         # feature_num
         self.label_num = 2        # num of classes
         self.sigma = 5            # sigma for graph construction
-        self.alpha = 0.95         # fraction of label information that xi receives from its neighbors
+        self.alpha = 0.99         # fraction of label information that xi receives from its neighbors
         self.maxk = 20             # number of nearest neighbors
         self.sub = []             # the max and min for each feature used for normalization
         self.gram = []            # Gram matrix
@@ -154,9 +153,9 @@ class LNP:
         for i in range(int(self.num_label_sample)):
             # clamp_data_label[i] = self.Y[i]
             if self.Y[i] == -1:
-                pass
+                clamp_data_label[i][0] = 1
             else:
-                clamp_data_label[i][1] = self.Y[i]
+                clamp_data_label[i][1] = 1
 
         # for i in range(num_unlabel_sample):
             # clamp_data_label[i+self.num_label_sample] = 0
@@ -201,26 +200,27 @@ class LNP:
 
     def rank_index(self):
         
-        A = 0.0
-        B = 0.0
-        C = 0.0
-        D = 0.0
-        numSamples = len(self.unlabel_data_labels)
-        for i in range(numSamples):
-            for j in range(i + 1, numSamples):
-                if self.Y[i + int(self.num_label_sample)] == self.Y[j + int(self.num_label_sample)]:
-                    if self.unlabel_data_labels[i] == self.unlabel_data_labels[j]:
-                        A = A + 1
-                    else:
-                        B = B + 1
-                else:
-                    if self.unlabel_data_labels[i] == self.unlabel_data_labels[j]:
-                        C = C + 1
-                    else:
-                        D = D + 1
-#        print(A, B, C, D)
-        accuracy = (A + D) / (A + B + C + D) * 100
-        return accuracy
+#         A = 0.0
+#         B = 0.0
+#         C = 0.0
+#         D = 0.0
+#         numSamples = len(self.unlabel_data_labels)
+#         for i in range(numSamples):
+#             for j in range(i + 1, numSamples):
+#                 if self.Y[i + int(self.num_label_sample)] == self.Y[j + int(self.num_label_sample)]:
+#                     if self.unlabel_data_labels[i] == self.unlabel_data_labels[j]:
+#                         A = A + 1
+#                     else:
+#                         B = B + 1
+#                 else:
+#                     if self.unlabel_data_labels[i] == self.unlabel_data_labels[j]:
+#                         C = C + 1
+#                     else:
+#                         D = D + 1
+# #        print(A, B, C, D)
+#         accuracy = (A + D) / (A + B + C + D) * 100
+#         return accuracy
+        return np.where(self.unlabel_data_labels == self)
 
     def generate_data(self, unlabeled_percentage_ = 0.1, seed_ = 0):
         mu_1 = np.array([2, 2])
@@ -231,7 +231,7 @@ class LNP:
         mu_2 = np.array([-2, -2])
         sigma_2 = 0.1 * np.diag(np.ones(2))
         data_class_2 = np.random.multivariate_normal(mu_2, sigma_2, 100)
-        labels_class_2 = np.zeros(100).astype(int)
+        labels_class_2 = -1*np.ones(100).astype(int)
 
         data = np.vstack((data_class_1, data_class_2))
         labels = np.concatenate((labels_class_1, labels_class_2))
@@ -241,21 +241,27 @@ class LNP:
         unlabeled_idx = rng.rand(len(data)) < unlabeled_percentage
 
         partial_labels = labels.copy()
-        partial_labels[unlabeled_idx] = -1
+        partial_labels[unlabeled_idx] = 0
+
+        idx = np.concatenate((np.where(partial_labels == 1)[0], np.where(partial_labels == -1)[0], np.where(partial_labels == 0)[0]))
+
+        data = data[idx]
+        labels = labels[idx]
+        partial_labels[idx]
 
         self.X = data
         self.Y = partial_labels
         self.true_labels = labels
         self.num_samples = len(self.X)
         
-        plt.scatter(data[0:100,0], data[0:100,1], c = 'red')
-        plt.hold(True)
-        plt.scatter(data[100:,0], data[100:,1], c = 'blue')
-        plt.scatter(data[unlabeled_idx,0], data[unlabeled_idx, 1], c = 'black')
-        plt.show()
+        # plt.scatter(data[0:100,0], data[0:100,1], c = 'red')
+        # plt.hold(True)
+        # plt.scatter(data[100:,0], data[100:,1], c = 'blue')
+        # plt.scatter(data[unlabeled_idx,0], data[unlabeled_idx, 1], c = 'black')
+        # plt.show()
         
     def build_graph_using_LLE(self):
-        my_LLE = LocallyLinearEmbedding(n_neighbors = 5, n_components = 2)
+        my_LLE = LocallyLinearEmbedding(n_neighbors = 10, n_components = 2)
         my_LLE.fit(self.X)
         self.W = my_LLE.get_LLE_weight_matrix(self.X)
 

@@ -5,6 +5,9 @@
 # License: BSD 3 clause (C) INRIA 2011
 
 import numpy as np
+
+import scipy
+
 from scipy.linalg import eigh, svd, qr, solve
 from scipy.sparse import eye, csr_matrix
 from scipy.sparse.linalg import eigsh
