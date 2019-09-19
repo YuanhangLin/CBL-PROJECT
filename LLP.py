@@ -22,52 +22,68 @@ from sklearn.utils.extmath import stable_cumsum
 from sklearn.utils.validation import check_is_fitted
 from sklearn.utils.validation import FLOAT_DTYPES
 from sklearn.neighbors import NearestNeighbors
+from LLE import *
 
 import matplotlib.pyplot as plt
 
 class LLP:
 
     def __init__(self, data = [], partial_labels = [], true_labels = [], alpha = 0.95, 
-                 max_iter = 10000, tol = 0.00001, n_neighbors = 7):
+                 max_iter = 10000, tol = 0.001, n_neighbors = 7):
 
         self.data = data               # data
         self.partial_labels = partial_labels               # labels for each samples
         self.true_labels = true_labels
+        
         self.num_samples = int(self.data.shape[0])  
         self.attr_num = int(self.data.shape[1])      
         self.label_num = int(len(np.unique(true_labels)))
+        
         self.alpha = alpha
         self.max_iter = max_iter
         self.tol = tol
         self.n_neighbors = n_neighbors
+        
         self.num_label_sample = np.where(self.partial_labels != -1)[0].shape[0]
         self.percentage_label_sample = self.num_label_sample / self.num_samples
         
+        # shift, make the upper part all labeled data and the lower part unlabeled data
+        new_idx = np.concatenate((np.where(self.partial_labels != -1)[0], np.where(self.partial_labels == -1)[0]))
         
-        
-        new_idx = np.concatenate((np.where(self.partial_labels == 1)[0], np.where(self.partial_labels == 0)[0], 
-                                 np.where(self.partial_labels == -1)[0]))
-        
-        self.data = self.data[new_idx]
+        self.data = self.data[new_idx, :]
         self.partial_labels = self.partial_labels[new_idx]
         self.true_labels = self.true_labels[new_idx]
         
         self.unlabel_idx = np.where(self.partial_labels == -1)[0]
         
+        
+        """
+        new implementation, even worse
+        """
+        
+#        self.W = get_W(self.data, n_dims = self.attr_num, n_neighbors = self.n_neighbors)
+        
+        """
+        preivous implementation, may not good
+        """
+        
         self.W = self.build_graph_using_LLE()          # get W
+        self.W[self.W < 0] = 0
+        self.W = self.W / np.sum(self.W, axis = 1)
+        
         
         print("initialized")
 
     def LNPiter(self):
         P = self.W.copy()
-
+        
         num_unlabel_sample = len(self.unlabel_idx)
         self.num_label_sample = self.num_samples - num_unlabel_sample
 
         clamp_data_label = np.zeros((self.num_samples, self.label_num), np.float32)
-
-        clamp_data_label[np.where(self.partial_labels == 0)[0], 0] = 1
-        clamp_data_label[np.where(self.partial_labels == 1)[0], 1] = 1
+        
+        for c in range(self.label_num):
+            clamp_data_label[np.where(self.partial_labels == c)[0], c] = 1
         
 #        for i in range(int(self.num_label_sample)):
 #            # clamp_data_label[i] = self.Y[i]
@@ -80,27 +96,40 @@ class LLP:
         # for i in range(num_unlabel_sample):
             # clamp_data_label[i+self.num_label_sample] = 0
 
-        label_function = clamp_data_label.copy()
-        iter_num = 0
-        pre_label_function = np.zeros((self.num_samples, self.label_num), np.float32)
-        changed = np.abs(pre_label_function - label_function).sum()
+        pre_label_function = clamp_data_label.copy()
+        iter_num, changed = 0, float("inf")
+        label_function = np.zeros((self.num_samples, self.label_num), np.float32)
+        
+        print("...")
+        
         while iter_num < self.max_iter and changed > self.tol:
 #            if iter_num % 1 == 0:
 #                print("---> Iteration %d/%d, changed: %f" % (iter_num, max_iter, changed))
-            pre_label_function = label_function
-            iter_num += 1
 
             # propagation
-            label_function = self.alpha * np.dot(P, label_function) + (1-self.alpha) * clamp_data_label
+#            print("# iteration:", iter_num)
+            
+            
+            label_function = self.alpha * P @ pre_label_function + (1-self.alpha) * clamp_data_label
 
-            # check converge
-            changed = np.abs(pre_label_function - label_function).sum()
+            # check convergence
+#            changed = np.linalg.norm(label_function - pre_label_function)
+            changed = np.abs(label_function - pre_label_function).sum()
+            
+            
+            
+            pre_label_function = label_function.copy()
+            
+            iter_num += 1
 
-            # get terminate label of unlabeled data
 
         self.unlabel_data_labels = np.zeros(int(num_unlabel_sample))
         
-        self.unlabel_data_labels = np.argmax(np.abs(label_function[-num_unlabel_sample:,:]), axis = 1)
+        self.outputs = label_function[-num_unlabel_sample:,:]
+#        outputs = 1 / (1 + np.exp(-outputs))
+        
+        
+        self.unlabel_data_labels = np.argmax(self.outputs, axis = 1) ######
         
         self.unlabel_data_labels = self.unlabel_data_labels.astype(int)
         print("iteration finished")

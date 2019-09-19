@@ -57,15 +57,17 @@ def demo_separate_gaussian(seed_ = 0):
         
         plt.figure(figsize=(12,8))
         
-        plt.scatter(data[0:100,0], data[0:100,1], c = 'red',  marker = 'x')
-        plt.scatter(data[100:,0], data[100:,1], c = 'blue',  marker = 'x')
         unlabeld_class1_idx = unlabeled_idx[np.where(labels[unlabeled_idx] == 0)[0]]
         unlabeld_class2_idx = unlabeled_idx[np.where(labels[unlabeled_idx] == 1)[0]]
+        labeled_class1_idx = np.where(partial_labels == 0)[0]
+        labeled_class2_idx = np.where(partial_labels == 1)[0]
         
+        plt.scatter(data[labeled_class1_idx, 0], data[labeled_class1_idx, 1], c = 'red',  marker = '.')
+        plt.scatter(data[labeled_class2_idx, 0], data[labeled_class2_idx, 1], c = 'blue',  marker = '.')
         plt.scatter(data[unlabeld_class1_idx, 0], data[unlabeld_class1_idx, 1], s = 80, facecolors='none', edgecolors='r')
         plt.scatter(data[unlabeld_class2_idx, 0], data[unlabeld_class2_idx, 1], s = 80, facecolors='none', edgecolors='b')
         
-        plt.title("circle:unlabeled data, mark:labeled data, unlabeled rate:" + str(round(unlabeled_percentage * 100)) + "%, accu:" + str(round(accu/total * 100)) + "%")
+        plt.title("circle:unlabeled data, point:labeled data, unlabeled rate:" + str(round(unlabeled_percentage * 100)) + "%, accu:" + str(round(accu/total * 100)) + "%")
         print("done, unlabel rate:", unlabeled_percentage, "total:", total, "accu:", accu, "accuracy:", accu/total)
         
         os.chdir(result_folder)
@@ -128,15 +130,18 @@ def demo_mixed_gaussian(seed_ = 0):
         
         plt.figure(figsize=(12,8))
         
-        plt.scatter(data[0:100,0], data[0:100,1], c = 'red',  marker = 'x')
-        plt.scatter(data[100:,0], data[100:,1], c = 'blue',  marker = 'x')
         unlabeld_class1_idx = unlabeled_idx[np.where(labels[unlabeled_idx] == 0)[0]]
         unlabeld_class2_idx = unlabeled_idx[np.where(labels[unlabeled_idx] == 1)[0]]
+        labeled_class1_idx = np.where(partial_labels == 0)[0]
+        labeled_class2_idx = np.where(partial_labels == 1)[0]
         
+        plt.scatter(data[labeled_class1_idx, 0], data[labeled_class1_idx, 1], c = 'red',  marker = '.')
+        plt.scatter(data[labeled_class2_idx, 0], data[labeled_class2_idx, 1], c = 'blue',  marker = '.')
         plt.scatter(data[unlabeld_class1_idx, 0], data[unlabeld_class1_idx, 1], s = 80, facecolors='none', edgecolors='r')
         plt.scatter(data[unlabeld_class2_idx, 0], data[unlabeld_class2_idx, 1], s = 80, facecolors='none', edgecolors='b')
         
-        plt.title("circle:unlabeled data, mark:labeled data, unlabeled rate:" + str(round(unlabeled_percentage * 100)) + "%, accu:" + str(round(accu/total * 100)) + "%")
+        plt.title("circle:unlabeled data, point:labeled data, unlabeled rate:" + str(round(unlabeled_percentage * 100)) + "%, accu:" + str(round(accu/total * 100)) + "%")
+        
         print("done, unlabel rate:", unlabeled_percentage, "total:", total, "accu:", accu, "accuracy:", accu/total)
         
         os.chdir(result_folder)
@@ -155,6 +160,93 @@ def demo_mixed_gaussian(seed_ = 0):
     np.savetxt("GLP_mixed_gaussian.csv", results, fmt = "%d", delimiter='\t', 
                header = "num_data\tnum_labeled_data\tunlabeled_percentage\taccuracy")
     os.chdir("../")
+
+def demo_3_separate_gaussian(seed_ = 0):
+    
+    mu_1 = np.array([1, 1])
+    sigma_1 = 0.01 * np.diag(np.ones(2))
+    data_class_1 = np.random.multivariate_normal(mu_1, sigma_1, 100)
+    labels_class_1 = np.zeros(100).astype(int)
+    
+    mu_2 = np.array([-1, -1])
+    sigma_2 = 0.1 * np.diag(np.ones(2))
+    data_class_2 = np.random.multivariate_normal(mu_2, sigma_2, 100)
+    labels_class_2 = np.ones(100).astype(int)
+    
+    mu_3 = np.array([0, 0])
+    sigma_3 = 0.01 * np.diag(np.ones(2))
+    data_class_3 = np.random.multivariate_normal(mu_3, sigma_3, 100)
+    labels_class_3 = 2*np.ones(100).astype(int)
+    
+    data = np.vstack((data_class_1, data_class_2, data_class_3))
+    labels = np.concatenate((labels_class_1, labels_class_2, labels_class_3))
+    
+    total = len(data)
+    
+    num_exps = int((95-5)/5 + 1)
+    results = np.zeros((num_exps, 4)) # num_data, num_labeled_data, unlabeled_per, accu
+    
+    result_folder = "GLP_demo_3_separate_gaussian/"
+    
+    if not os.path.exists(result_folder):
+        os.mkdir(result_folder)
+    
+    for i in range(5, 100, 5):
+    
+        unlabeled_percentage = i/100
+        rng = np.random.RandomState(seed = seed_)
+        unlabeled_idx = np.where((rng.rand(len(data)) <= unlabeled_percentage)==True)[0]
+        unlabeled_idx.astype(int)
+        
+        partial_labels = labels.copy()
+        partial_labels[unlabeled_idx] = -1
+        
+        label_prop_model = GLP(kernel = "rbf", gamma=20, 
+                                            n_neighbors=20, max_iter=10000, tol=0.001)
+        label_prop_model.fit(data, partial_labels)
+        
+        predicts = label_prop_model.predict(data[unlabeled_idx])
+        total = predicts.shape[0]
+        accu = np.where(labels[unlabeled_idx]==predicts)[0].shape[0]
+        
+        plt.figure(figsize=(12,8))
+        
+        unlabeld_class1_idx = unlabeled_idx[np.where(labels[unlabeled_idx] == 0)[0]]
+        unlabeld_class2_idx = unlabeled_idx[np.where(labels[unlabeled_idx] == 1)[0]]
+        unlabeld_class3_idx = unlabeled_idx[np.where(labels[unlabeled_idx] == 2)[0]]
+        labeled_class1_idx = np.where(partial_labels == 0)[0]
+        labeled_class2_idx = np.where(partial_labels == 1)[0]
+        labeled_class3_idx = np.where(partial_labels == 2)[0]
+        
+        plt.scatter(data[labeled_class1_idx, 0], data[labeled_class1_idx, 1], c = 'red',  marker = '.')
+        plt.scatter(data[labeled_class2_idx, 0], data[labeled_class2_idx, 1], c = 'blue',  marker = '.')
+        plt.scatter(data[labeled_class3_idx, 0], data[labeled_class3_idx, 1], c = 'g',  marker = '.')
+        plt.scatter(data[unlabeld_class1_idx, 0], data[unlabeld_class1_idx, 1], s = 80, facecolors='none', edgecolors='r')
+        plt.scatter(data[unlabeld_class2_idx, 0], data[unlabeld_class2_idx, 1], s = 80, facecolors='none', edgecolors='b')
+        plt.scatter(data[unlabeld_class3_idx, 0], data[unlabeld_class3_idx, 1], s = 80, facecolors='none', edgecolors='g')
+        
+        plt.title("circle:unlabeled data, point:labeled data, unlabeled rate:" + str(round(unlabeled_percentage * 100)) + "%, accu:" + str(round(accu/total * 100)) + "%")
+        
+        print("done, unlabel rate:", unlabeled_percentage, "total:", total, "accu:", accu, "accuracy:", accu/total)
+        
+        os.chdir(result_folder)
+        fig_name = "unlabeled_percentage_" + str(i)
+        plt.savefig(fig_name)
+        os.chdir("../")
+        
+        plt.show()
+        
+        results[int((i-5)/5),0] = data.shape[0]
+        results[int((i-5)/5),1] = np.where(partial_labels != -1)[0].shape[0]
+        results[int((i-5)/5),2] = round(unlabeled_percentage * 100)
+        results[int((i-5)/5),3] = round(accu/total * 100)
+
+
+    os.chdir(result_folder)
+    np.savetxt("GLP_3_separate_gaussian.csv", results, fmt = "%d", delimiter='\t', 
+               header = "num_data\tnum_labeled_data\tunlabeled_percentage\taccuracy")
+    os.chdir("../")
+
 
 
 def demo_polygon_level_truncated_aggregation_balanced_unlabeled(seed = 0):
@@ -238,13 +330,14 @@ def demo_polygon_level_truncated_aggregation_unbalanced_unlabeled(seed = 0):
         
 
     os.chdir(result_folder)
-    np.savetxt("GLP_susan_dataset_unbalanced_unlabeled.csv", results, fmt = "%d", delimiter='\t', 
+    np.savetxt("GLP_3_separate_Gaussian.csv", results, fmt = "%d", delimiter='\t', 
                header = "num_data\tnum_labeled_data\tunlabeled_percentage\taccuracy")
     os.chdir("../")
 
 
 if __name__ == "__main__":
-    demo_separate_gaussian(0)
-    demo_mixed_gaussian(0)
-    demo_polygon_level_truncated_aggregation_balanced_unlabeled(seed = 0)
-    demo_polygon_level_truncated_aggregation_unbalanced_unlabeled(seed = 0)
+#    demo_separate_gaussian(0)
+#    demo_mixed_gaussian(0)
+#    demo_polygon_level_truncated_aggregation_balanced_unlabeled(seed = 0)
+#    demo_polygon_level_truncated_aggregation_unbalanced_unlabeled(seed = 0)
+    demo_3_separate_gaussian(seed_ = 0)
