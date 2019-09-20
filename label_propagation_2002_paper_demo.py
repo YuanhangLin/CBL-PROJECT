@@ -35,7 +35,7 @@ def demo_label_propgation_2002paper_iris_dataset(unlabeled_per = 0.5, seed_ = 0)
     
     
     plt.scatter(data[target==0,0], data[target==0,1], c = 'red')
-    plt.hold(True)
+#    plt.hold(True)
     plt.scatter(data[target==1,0], data[target==1,1], c = 'blue')
     plt.scatter(data[rand_unlabeled_idx, 0], data[rand_unlabeled_idx, 1], c = 'green')
     plt.show()
@@ -56,7 +56,7 @@ def demo_label_propgation_2002paper_same_distribution(unlabeled_percentage_ = 0.
     labels = np.concatenate((labels_class_1, labels_class_2))
     
     plt.scatter(data[0:100,0], data[0:100,1], c = 'red')
-    plt.hold(True)
+#    plt.hold(True)
     plt.scatter(data[100:,0], data[100:,1], c = 'blue')
     
     unlabeled_percentage = unlabeled_percentage_
@@ -75,7 +75,7 @@ def demo_label_propgation_2002paper_same_distribution(unlabeled_percentage_ = 0.
     total = predicts.shape[0]
     accu = np.where(labels[unlabeled_idx]==predicts)[0].shape[0]
     
-    plt.scatter(data[unlabeled_idx, 0], data[unlabeled_idx, 1], c = 'green')
+    plt.scatter(data[unlabeled_idx, 0], data[unlabeled_idx, 1], c = 'green', marker = 'x')
     
     print("done, unlabel rate:", unlabeled_percentage_, "total:", total, "accu:", accu, "accuracy:", accu/total)
     

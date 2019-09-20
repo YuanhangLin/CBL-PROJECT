@@ -7,7 +7,7 @@ Created on Mon Sep 16 15:59:32 2019
 """
 
 import numpy as np
-from GLP import GLP
+from soft_GLP import soft_GLP
 import matplotlib.pyplot as plt
 import matplotlib
 import os
@@ -32,7 +32,7 @@ def demo_separate_gaussian(seed_ = 0):
     num_exps = int((95-5)/5 + 1)
     results = np.zeros((num_exps, 4)) # num_data, num_labeled_data, unlabeled_per, accu
     
-    result_folder = "GLP_demo_separate_gaussian/"
+    result_folder = "soft_GLP_demo_separate_gaussian/"
     
     if not os.path.exists(result_folder):
         os.mkdir(result_folder)
@@ -47,8 +47,8 @@ def demo_separate_gaussian(seed_ = 0):
         partial_labels = labels.copy()
         partial_labels[unlabeled_idx] = -1
         
-        label_prop_model = GLP(kernel = "rbf", gamma=20, 
-                                            n_neighbors=7, max_iter=1000, tol=0.001)
+        label_prop_model = soft_GLP(kernel = "rbf", gamma=20, 
+                                            n_neighbors=7, alpha=0.99, max_iter=1000, tol=0.001)
         label_prop_model.fit(data, partial_labels)
         
         predicts = label_prop_model.predict(data[unlabeled_idx])
@@ -83,7 +83,7 @@ def demo_separate_gaussian(seed_ = 0):
         results[int((i-5)/5),3] = round(accu/total * 100)
     
     os.chdir(result_folder)
-    np.savetxt("GLP_separate_gaussian.csv", results, fmt = "%d", delimiter='\t', 
+    np.savetxt("soft_GLP_separate_gaussian.csv", results, fmt = "%d", delimiter='\t', 
                header = "num_data\tnum_labeled_data\tunlabeled_percentage\taccuracy")
     os.chdir("../")
 
@@ -105,7 +105,7 @@ def demo_mixed_gaussian(seed_ = 0):
     num_exps = int((95-5)/5 + 1)
     results = np.zeros((num_exps, 4)) # num_data, num_labeled_data, unlabeled_per, accu
     
-    result_folder = "GLP_demo_mixed_gaussian/"
+    result_folder = "soft_GLP_demo_mixed_gaussian/"
     
     if not os.path.exists(result_folder):
         os.mkdir(result_folder)
@@ -120,8 +120,8 @@ def demo_mixed_gaussian(seed_ = 0):
         partial_labels = labels.copy()
         partial_labels[unlabeled_idx] = -1
         
-        label_prop_model = GLP(kernel = "rbf", gamma=20, 
-                                            n_neighbors=20, max_iter=10000, tol=0.001)
+        label_prop_model = soft_GLP(kernel = "rbf", gamma=20, 
+                                            n_neighbors=7, alpha=0.99, max_iter=1000, tol=0.001)
         label_prop_model.fit(data, partial_labels)
         
         predicts = label_prop_model.predict(data[unlabeled_idx])
@@ -157,7 +157,7 @@ def demo_mixed_gaussian(seed_ = 0):
         results[int((i-5)/5),3] = round(accu/total * 100)
 
     os.chdir(result_folder)
-    np.savetxt("GLP_mixed_gaussian.csv", results, fmt = "%d", delimiter='\t', 
+    np.savetxt("soft_GLP_mixed_gaussian.csv", results, fmt = "%d", delimiter='\t', 
                header = "num_data\tnum_labeled_data\tunlabeled_percentage\taccuracy")
     os.chdir("../")
 
@@ -186,7 +186,7 @@ def demo_3_separate_gaussian(seed_ = 0):
     num_exps = int((95-5)/5 + 1)
     results = np.zeros((num_exps, 4)) # num_data, num_labeled_data, unlabeled_per, accu
     
-    result_folder = "GLP_demo_3_separate_gaussian/"
+    result_folder = "soft_GLP_demo_3_separate_gaussian/"
     
     if not os.path.exists(result_folder):
         os.mkdir(result_folder)
@@ -201,8 +201,8 @@ def demo_3_separate_gaussian(seed_ = 0):
         partial_labels = labels.copy()
         partial_labels[unlabeled_idx] = -1
         
-        label_prop_model = GLP(kernel = "rbf", gamma=20, 
-                                            n_neighbors=20, max_iter=10000, tol=0.001)
+        label_prop_model = soft_GLP(kernel = "rbf", gamma=20, 
+                                            n_neighbors=7, alpha=0.99, max_iter=1000, tol=0.001)
         label_prop_model.fit(data, partial_labels)
         
         predicts = label_prop_model.predict(data[unlabeled_idx])
@@ -243,7 +243,7 @@ def demo_3_separate_gaussian(seed_ = 0):
 
 
     os.chdir(result_folder)
-    np.savetxt("GLP_3_separate_gaussian.csv", results, fmt = "%d", delimiter='\t', 
+    np.savetxt("soft_GLP_3_separate_gaussian.csv", results, fmt = "%d", delimiter='\t', 
                header = "num_data\tnum_labeled_data\tunlabeled_percentage\taccuracy")
     os.chdir("../")
 
@@ -258,7 +258,7 @@ def demo_polygon_level_truncated_aggregation_balanced_unlabeled(seed = 0):
     size = int((95-5)/5 + 1)
     results = np.zeros((size, 4))
     
-    result_folder = "GLP_demo_susan_dataset_balanced/"
+    result_folder = "soft_GLP_demo_susan_dataset_balanced/"
     if not os.path.exists(result_folder):
         os.mkdir(result_folder)
     
@@ -272,8 +272,8 @@ def demo_polygon_level_truncated_aggregation_balanced_unlabeled(seed = 0):
             unlabeled_idx = np.where((rng.rand(len(c_idx)) < unlabeled_percentage) == True)[0]
             partial_labels[c_idx[unlabeled_idx]] = -1
         
-        label_prop_model = GLP(kernel = "rbf", gamma=20, 
-                                            n_neighbors=7, max_iter=1000, tol=0.001)
+        label_prop_model = soft_GLP(kernel = "rbf", gamma=20, 
+                                            n_neighbors=7, alpha=0.99, max_iter=1000, tol=0.001)
         
         label_prop_model.fit(data, partial_labels)
         predicts = label_prop_model.predict(data[unlabeled_idx])
@@ -288,7 +288,7 @@ def demo_polygon_level_truncated_aggregation_balanced_unlabeled(seed = 0):
         results[int((i-5)/5), 3] = round(accu/total*100)
     
     os.chdir(result_folder)
-    np.savetxt("GLP_susan_dataset_balanced_unlabeled.csv", results, fmt = "%d", delimiter='\t', 
+    np.savetxt("soft_GLP_susan_dataset_balanced_unlabeled.csv", results, fmt = "%d", delimiter='\t', 
                header = "num_data\tnum_labeled_data\tunlabeled_percentage\taccuracy")
     os.chdir("../")
 
@@ -298,7 +298,7 @@ def demo_polygon_level_truncated_aggregation_unbalanced_unlabeled(seed = 0):
 
     rng = np.random.RandomState(seed)
     
-    result_folder = "GLP_demo_susan_dataset_unbalanced/"
+    result_folder = "soft_GLP_demo_susan_dataset_unbalanced/"
     if not os.path.exists(result_folder):
         os.mkdir(result_folder)
     
@@ -313,8 +313,8 @@ def demo_polygon_level_truncated_aggregation_unbalanced_unlabeled(seed = 0):
         unlabeled_idx = np.where((rng.rand(len(partial_labels)) < unlabeled_percentage) == True)[0]
         partial_labels[unlabeled_idx] = -1
         
-        label_prop_model = GLP(kernel = "rbf", gamma=20, 
-                                            n_neighbors=7, max_iter=1000, tol=0.001)
+        label_prop_model = soft_GLP(kernel = "rbf", gamma=20, 
+                                            n_neighbors=7, alpha=0.99, max_iter=1000, tol=0.001)
         
         label_prop_model.fit(data, partial_labels)
         predicts = label_prop_model.predict(data[unlabeled_idx])
@@ -330,14 +330,14 @@ def demo_polygon_level_truncated_aggregation_unbalanced_unlabeled(seed = 0):
         
 
     os.chdir(result_folder)
-    np.savetxt("GLP_3_separate_Gaussian.csv", results, fmt = "%d", delimiter='\t', 
+    np.savetxt("soft_GLP_3_separate_Gaussian.csv", results, fmt = "%d", delimiter='\t', 
                header = "num_data\tnum_labeled_data\tunlabeled_percentage\taccuracy")
     os.chdir("../")
 
 
 if __name__ == "__main__":
-#    demo_separate_gaussian(0)
-#    demo_mixed_gaussian(0)
-#    demo_polygon_level_truncated_aggregation_balanced_unlabeled(seed = 0)
-#    demo_polygon_level_truncated_aggregation_unbalanced_unlabeled(seed = 0)
+    demo_separate_gaussian(0)
+    demo_mixed_gaussian(0)
+    demo_polygon_level_truncated_aggregation_balanced_unlabeled(seed = 0)
+    demo_polygon_level_truncated_aggregation_unbalanced_unlabeled(seed = 0)
     demo_3_separate_gaussian(seed_ = 0)

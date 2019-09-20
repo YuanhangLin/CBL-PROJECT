@@ -1,3 +1,11 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Sep 20 13:52:04 2019
+
+@author: linyuanhang
+"""
+
 import warnings
 import numpy as np
 from scipy import sparse
@@ -13,8 +21,12 @@ from sklearn.utils.validation import check_X_y, check_is_fitted, check_array
 from sklearn.exceptions import ConvergenceWarning
 
 
-class GLP():
-    """Label Propagation classifier
+class soft_GLP():
+    """LabelSpreading model for semi-supervised learning
+
+    This model is similar to the basic Label Propagation algorithm,
+    but uses affinity matrix based on the normalized graph Laplacian
+    and soft clamping across the labels.
 
     Read more in the :ref:`User Guide <label_propagation>`.
 
@@ -24,20 +36,27 @@ class GLP():
         String identifier for kernel function to use or the kernel function
         itself. Only 'rbf' and 'knn' strings are valid inputs. The function
         passed should take two inputs, each of shape [n_samples, n_features],
-        and return a [n_samples, n_samples] shaped weight matrix.
+        and return a [n_samples, n_samples] shaped weight matrix
 
     gamma : float
-        Parameter for rbf kernel
+      parameter for rbf kernel
 
     n_neighbors : integer > 0
-        Parameter for knn kernel
+      parameter for knn kernel
+
+    alpha : float
+      Clamping factor. A value in (0, 1) that specifies the relative amount
+      that an instance should adopt the information from its neighbors as
+      opposed to its initial label.
+      alpha=0 means keeping the initial label information; alpha=1 means
+      replacing all initial information.
 
     max_iter : integer
-        Change maximum number of iterations allowed
+      maximum number of iterations allowed
 
     tol : float
-        Convergence tolerance: threshold to consider the system at steady
-        state
+      Convergence tolerance: threshold to consider the system at steady
+      state
 
     n_jobs : int or None, optional (default=None)
         The number of parallel jobs to run.
@@ -62,12 +81,36 @@ class GLP():
     n_iter_ : int
         Number of iterations run.
 
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from sklearn import datasets
+    >>> from sklearn.semi_supervised import LabelSpreading
+    >>> label_prop_model = LabelSpreading()
+    >>> iris = datasets.load_iris()
+    >>> rng = np.random.RandomState(42)
+    >>> random_unlabeled_points = rng.rand(len(iris.target)) < 0.3
+    >>> labels = np.copy(iris.target)
+    >>> labels[random_unlabeled_points] = -1
+    >>> label_prop_model.fit(iris.data, labels)
+    LabelSpreading(...)
+
+    References
+    ----------
+    Dengyong Zhou, Olivier Bousquet, Thomas Navin Lal, Jason Weston,
+    Bernhard Schoelkopf. Learning with local and global consistency (2004)
+    http://citeseer.ist.psu.edu/viewdoc/summary?doi=10.1.1.115.3219
+
+    See Also
+    --------
+    LabelPropagation : Unregularized graph based semi-supervised learning
     """
 
-    _variant = 'propagation'
+    _variant = 'spreading'
+
 
     def __init__(self, kernel='rbf', gamma=20, n_neighbors=7,
-                 alpha=1, max_iter=30, tol=1e-3, n_jobs=None):
+                 alpha=0.99, max_iter=30, tol=1e-3, n_jobs=None):
 
         self.max_iter = max_iter
         self.tol = tol
@@ -81,7 +124,7 @@ class GLP():
         self.alpha = alpha
 
         self.n_jobs = n_jobs
-
+        
     def _get_kernel(self, X, y=None):
         if self.kernel == "rbf":
             if y is None:
@@ -107,9 +150,23 @@ class GLP():
             raise ValueError("%s is not a valid kernel. Only rbf and knn"
                              " or an explicit function "
                              " are supported at this time." % self.kernel)
-
-
-
+        
+    def _build_graph(self):
+        """Graph matrix for Label Spreading computes the graph laplacian"""
+        # compute affinity matrix (or gram matrix)
+        if self.kernel == 'knn':
+            self.nn_fit = None
+        n_samples = self.X_.shape[0]
+        affinity_matrix = self._get_kernel(self.X_)
+        laplacian = csgraph.laplacian(affinity_matrix, normed=True)
+        laplacian = -laplacian
+        if sparse.isspmatrix(laplacian):
+            diag_mask = (laplacian.row == laplacian.col)
+            laplacian.data[diag_mask] = 0.0
+        else:
+            laplacian.flat[::n_samples + 1] = 0.0  # set diag to 0.0
+        return laplacian
+    
     def predict_proba(self, X):
         """Predict probability for each possible outcome.
 
@@ -142,23 +199,22 @@ class GLP():
         normalizer = np.atleast_2d(np.sum(probabilities, axis=1)).T
         probabilities /= normalizer
         return probabilities
+    
+    def predict(self, X):
+        """Performs inductive inference across the model.
 
-    def _build_graph(self):
-        """Matrix representing a fully connected graph between each sample
+        Parameters
+        ----------
+        X : array_like, shape = [n_samples, n_features]
 
-        This basic implementation creates a non-stochastic affinity matrix, so
-        class distributions will exceed 1 (normalization may be desired).
+        Returns
+        -------
+        y : array_like, shape = [n_samples]
+            Predictions for input data
         """
-        if self.kernel == 'knn':
-            self.nn_fit = None
-        affinity_matrix = self._get_kernel(self.X_)
-        normalizer = affinity_matrix.sum(axis=0)
-        if sparse.isspmatrix(affinity_matrix):
-            affinity_matrix.data /= np.diag(np.array(normalizer))
-        else:
-            affinity_matrix /= normalizer[:, np.newaxis]
-        return affinity_matrix
-
+        probas = self.predict_proba(X)
+        return self.classes_[np.argmax(probas, axis=1)].ravel()
+    
     def fit(self, X, y):
         """Fit a semi-supervised label propagation model based
 
@@ -256,17 +312,3 @@ class GLP():
         self.transduction_ = transduction.ravel()
         return self
     
-    def predict(self, X):
-        """Performs inductive inference across the model.
-
-        Parameters
-        ----------
-        X : array_like, shape = [n_samples, n_features]
-
-        Returns
-        -------
-        y : array_like, shape = [n_samples]
-            Predictions for input data
-        """
-        probas = self.predict_proba(X)
-        return self.classes_[np.argmax(probas, axis=1)].ravel()
